@@ -3,6 +3,7 @@ package io.sustc.service.impl;
 import java.time.LocalDate;
 
 import java.util.ArrayList;
+import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -41,15 +42,15 @@ public class UserServiceImpl implements UserService {
             return -1;
         }
         if (req.getName() == null || req.getName().equals("")) {
-            req.setName("fuck" + System.currentTimeMillis());
+            req.setName(UUID.randomUUID().toString());
         }
         if (req.getSex() == null) {
             log.warn("Sex is null, set to UNKNOWN.");
             req.setSex(Gender.UNKNOWN);
         }
 
-        try {
-            Connection conn = dataSource.getConnection();
+        try(Connection conn = dataSource.getConnection();) {
+            
             String sql = "SELECT * FROM auth_info WHERE qq = ? OR wechat = ?";
             PreparedStatement ps = conn.prepareStatement(sql);
             ps.setString(1, req.getQq());
@@ -109,9 +110,10 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public boolean deleteAccount(AuthInfo auth, long mid) {
-        try {
-            Connection conn = dataSource.getConnection();
+        try (Connection conn = dataSource.getConnection();){
+            
             Identity identity = Authenticate.authenticate(auth, conn);
+            auth.setMid(Authenticate.getMid(auth, conn));
             if (identity == null) {
                 return false;
             } else {
@@ -119,8 +121,9 @@ public class UserServiceImpl implements UserService {
                     log.error("Authentication failed: user can only delete his own account.");
                     return false;
                 } else if (identity == Identity.SUPERUSER && auth.getMid() != mid
-                        && Authenticate.checkIdentity(mid, conn) != Identity.USER) {
-                    log.error("Authentication failed: superuser can't delete another superuser's account.");
+                        && Authenticate.checkIdentity(auth.getMid(), conn) != Identity.USER) {
+                    log.error("Authentication failed: superuser{} can't delete another superuser{}'s account.",
+                            auth.getMid(), mid);
                     return false;
                 }
                 String usersql = "DELETE FROM users WHERE mid = ?";
@@ -165,14 +168,16 @@ public class UserServiceImpl implements UserService {
     @Override
     public boolean follow(AuthInfo auth, long followeeMid) {
 
-        try {
-            Connection conn = dataSource.getConnection();
+        try(Connection conn = dataSource.getConnection();) {
+            
             Identity identity = Authenticate.authenticate(auth, conn);
+            auth.setMid(Authenticate.getMid(auth, conn));
             if (identity == null) {
                 return false;
             } else {
                 String sql = "SELECT * FROM user_relationships WHERE followermid = ? AND followingmid = ?";
                 PreparedStatement ps = conn.prepareStatement(sql);
+                auth.setMid(getMid(auth, conn));
                 ps.setLong(1, auth.getMid());
                 ps.setLong(2, followeeMid);
                 ResultSet rs = ps.executeQuery();
@@ -295,6 +300,34 @@ public class UserServiceImpl implements UserService {
             e.printStackTrace();
         }
         return null;
+    }
+
+    public static long getMid(AuthInfo auth, Connection conn){
+        try{
+            String pattern = "";
+            if(auth.getMid() != 0){
+                return auth.getMid();
+            }else if(auth.getQq() != null){
+                pattern = auth.getQq();
+            }else if(auth.getWechat() != null){
+                pattern = auth.getWechat();
+            }else{
+                return -1;
+            }
+            String sql = "SELECT * FROM auth_info WHERE qq = ? OR wechat = ?";
+            PreparedStatement ps = conn.prepareStatement(sql);
+            ps.setString(1, pattern);
+            ps.setString(2, pattern);
+            ResultSet rs = ps.executeQuery();
+            if (rs.next()) {
+                return rs.getLong("mid");
+            } else {
+                return -1;
+            }
+        }catch(Exception e){
+            e.printStackTrace();
+            return -1;
+        }
     }
 
 }

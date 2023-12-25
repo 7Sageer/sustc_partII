@@ -18,10 +18,11 @@ dependencies {
     implementation("org.apache.commons:commons-lang3")
     implementation("com.fasterxml.jackson.core:jackson-databind")
     implementation("org.furyio:fury-core:0.3.1")
-
+    implementation("org.jetbrains.kotlin:kotlin-stdlib")
     implementation(platform("org.springframework.shell:spring-shell-dependencies:2.1.13"))
     implementation("org.springframework.shell:spring-shell-starter")
 }
+
 
 tasks.withType<JavaExec> {
     standardInput = System.`in`

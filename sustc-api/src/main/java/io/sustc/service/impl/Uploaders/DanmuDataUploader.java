@@ -9,6 +9,7 @@ import java.util.concurrent.TimeUnit;
 import java.sql.Statement;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.sql.SQLException;
 import java.util.List;
@@ -17,7 +18,7 @@ import java.util.ArrayList;
 import io.sustc.dto.*;
 
 import javax.sql.DataSource;
-
+@Transactional
 public class DanmuDataUploader {
     private DataSource dataSource;
     private static final int THREAD_POOL_SIZE = 10;

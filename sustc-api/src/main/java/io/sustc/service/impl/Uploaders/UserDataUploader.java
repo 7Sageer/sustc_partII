@@ -7,6 +7,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.sql.Date;
 import java.sql.SQLException;
@@ -18,6 +19,7 @@ import io.sustc.service.impl.Tools.ParseDate;
 
 import javax.sql.DataSource;
 
+@Transactional
 public class UserDataUploader {
     private DataSource dataSource;
     private static final int THREAD_POOL_SIZE = 10;

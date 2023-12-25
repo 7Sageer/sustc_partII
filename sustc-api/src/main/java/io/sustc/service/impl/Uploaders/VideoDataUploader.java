@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.ArrayList;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
@@ -18,6 +19,7 @@ import lombok.extern.slf4j.Slf4j;
 import javax.sql.DataSource;
 
 @Slf4j
+@Transactional
 public class VideoDataUploader {
     private static final int THREAD_POOL_SIZE = 10; // 根据需要调整线程池大小
     private final DataSource dataSource;
@@ -86,7 +88,7 @@ public class VideoDataUploader {
                 videoStmt.setTimestamp(6, video.getPublicTime());
                 videoStmt.setFloat(7, video.getDuration());
                 videoStmt.setString(8, video.getDescription());
-                videoStmt.setBoolean(9, false);
+                videoStmt.setBoolean(9, true);
                 videoStmt.setLong(10, video.getReviewer());
                 videoStmt.addBatch();
 
