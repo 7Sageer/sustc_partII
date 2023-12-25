@@ -32,13 +32,9 @@ public class VideoServiceImpl implements VideoService {
         try (Connection conn = dataSource.getConnection();){
             if (Authenticate.videoAuthenticate(req, auth, conn) == 0) {
                 auth.setMid(Authenticate.getMid(auth, conn));
-        try (Connection conn = dataSource.getConnection();) {
-            if (Authenticate.videoAuthenticate(req, auth, conn) == 0) {
-                auth.setMid(Authenticate.getMid(auth, conn));
                 // generate an uuid by using UUID.randomUUID().toString()
                 String bv = UUID.randomUUID().toString();
                 String sql = "INSERT INTO videos (bv, ownermid, title, description, duration, committime, ispublic) VALUES (?, ?, ?, ?, ?, ?, ?);";
-                PreparedStatement ps = conn.prepareStatement(sql);
                 PreparedStatement ps = conn.prepareStatement(sql);
                 ps.setString(1, bv);
                 ps.setLong(2, auth.getMid());
@@ -46,7 +42,7 @@ public class VideoServiceImpl implements VideoService {
                 ps.setString(4, req.getDescription());
                 ps.setFloat(5, req.getDuration());
                 if(req.getPublicTime() == null)
-                    ps.setTimestamp(6, new Timestamp(System.currentTimeMillis()));
+                    return null;
                 else
                     ps.setTimestamp(6, req.getPublicTime());
                 ps.setBoolean(7, false);
