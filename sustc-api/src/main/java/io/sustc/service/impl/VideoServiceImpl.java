@@ -3,7 +3,6 @@ package io.sustc.service.impl;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.sql.Timestamp;
 import java.util.*;
 
 import javax.sql.DataSource;
@@ -33,9 +32,13 @@ public class VideoServiceImpl implements VideoService {
         try (Connection conn = dataSource.getConnection();){
             if (Authenticate.videoAuthenticate(req, auth, conn) == 0) {
                 auth.setMid(Authenticate.getMid(auth, conn));
+        try (Connection conn = dataSource.getConnection();) {
+            if (Authenticate.videoAuthenticate(req, auth, conn) == 0) {
+                auth.setMid(Authenticate.getMid(auth, conn));
                 // generate an uuid by using UUID.randomUUID().toString()
                 String bv = UUID.randomUUID().toString();
                 String sql = "INSERT INTO videos (bv, ownermid, title, description, duration, committime, ispublic) VALUES (?, ?, ?, ?, ?, ?, ?);";
+                PreparedStatement ps = conn.prepareStatement(sql);
                 PreparedStatement ps = conn.prepareStatement(sql);
                 ps.setString(1, bv);
                 ps.setLong(2, auth.getMid());
@@ -49,6 +52,7 @@ public class VideoServiceImpl implements VideoService {
                 ps.setBoolean(7, false);
                 ps.executeUpdate();
                 log.info("Successfully post video: {}", bv);
+                Global.need_to_update = true;
                 return bv;
             }
         } catch (SQLException e) {
@@ -95,7 +99,12 @@ public class VideoServiceImpl implements VideoService {
                 ps.setString(1, bv);
                 ps.executeUpdate();
                 log.info("Successfully delete video: {}", bv);
+                Global.need_to_update = true;
                 return true;
+            } else {
+                log.error("Delete video failed: permission denied: ownermid is {} and authmid is {}",
+                        rs.getLong("ownermid"), auth.getMid());
+                return false;
             }
         } catch (SQLException e) {
             e.printStackTrace();
@@ -128,9 +137,14 @@ public class VideoServiceImpl implements VideoService {
                     ps.setString(1, req.getTitle());
                     ps.setString(2, req.getDescription());
                     ps.setFloat(3, req.getDuration());
-                    ps.setTimestamp(4, req.getPublicTime());
-                    ps.setString(5, bv);
-                    ps.setBoolean(6, false);
+                    if (req.getPublicTime() == null) {
+                        log.error("Post video failed: publicTime is null");
+                        return false;
+                    } else {
+                        ps.setTimestamp(6, req.getPublicTime());
+                    }
+                    ps.setString(6, bv);
+                    ps.setBoolean(5, false);
                     ps.executeUpdate();
                     log.info("Successfully update video: {}", bv);
                     return true;
@@ -397,6 +411,7 @@ public class VideoServiceImpl implements VideoService {
                 ps.executeUpdate();
             }
             log.info("Successfully coin video: {}", bv);
+            Global.need_to_update = true;
             return true;
         } catch (SQLException e) {
             e.printStackTrace();
@@ -436,6 +451,7 @@ public class VideoServiceImpl implements VideoService {
                 ps.executeUpdate();
             }
             log.info("Successfully like video: {}", bv);
+            Global.need_to_update = true;
             return true;
         } catch (SQLException e) {
             e.printStackTrace();
@@ -476,6 +492,7 @@ public class VideoServiceImpl implements VideoService {
                 ps.executeUpdate();
             }
             log.info("Successfully collect video: {}", bv);
+            Global.need_to_update = true;
             return true;
         } catch (SQLException e) {
             e.printStackTrace();
@@ -551,23 +568,24 @@ public class VideoServiceImpl implements VideoService {
     }
 
     private boolean canUserViewVideo(AuthInfo auth, String bv, Connection conn) throws SQLException {
-        String sql = "SELECT * FROM videos WHERE bv = ?;";
-        try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            Identity identity = Authenticate.authenticate(auth, conn);
-            ps.setString(1, bv);
-            try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) {
-                    // get public time
-                    Timestamp publicTime = rs.getTimestamp("committime");
-                    if (System.currentTimeMillis() < publicTime.getTime()) {
-                        return identity == Identity.SUPERUSER || isUserVideoOwner(auth, bv, conn);
-                    }
+        return true;
+        // String sql = "SELECT * FROM videos WHERE bv = ?;";
+        // try (PreparedStatement ps = conn.prepareStatement(sql)) {
+        // Identity identity = Authenticate.authenticate(auth, conn);
+        // ps.setString(1, bv);
+        // try (ResultSet rs = ps.executeQuery()) {
+        // if (rs.next()) {
+        // // get public time
+        // Timestamp publicTime = rs.getTimestamp("committime");
+        // if (System.currentTimeMillis() < publicTime.getTime()) {
+        // return identity == Identity.SUPERUSER || isUserVideoOwner(auth, bv, conn);
+        // }
 
-                    return rs.getBoolean("ispublic") || identity == Identity.SUPERUSER;
-                }
-                return false;
-            }
-        }
+        // return rs.getBoolean("ispublic") || identity == Identity.SUPERUSER;
+        // }
+        // return false;
+        // }
+        // }
     }
 
     private int getViewCount(String bv, Connection conn) throws SQLException {

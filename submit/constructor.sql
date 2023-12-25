@@ -90,11 +90,6 @@ CREATE TABLE video_stats (
     fav_rate FLOAT
 );
 
-CREATE TABLE video_aggregates (
-    bv VARCHAR(50) PRIMARY KEY,
-    avg_finish DOUBLE PRECISION
-);
-
 -- -- UserVideoFavorite Table
 -- CREATE TABLE user_video_favorite (
 --     mid BIGINT REFERENCES users(mid),
@@ -236,87 +231,6 @@ END;
 $$;
 
 alter function update_video_interactions_aggregates() owner to postgres;
-
-
-
-CREATE OR REPLACE FUNCTION update_video_aggregates()
-RETURNS VOID AS $$
-DECLARE
-    v_record RECORD;
-BEGIN
-    FOR v_record IN SELECT v.bv, AVG(uvw.watch_time) / NULLIF(v.duration, 0) AS avg_finish
-                    FROM videos v
-                    JOIN user_video_watch uvw ON v.bv = uvw.bv
-                    GROUP BY v.bv
-    LOOP
-        -- 更新或插入到 video_aggregates 表
-        INSERT INTO video_aggregates(bv, avg_finish)
-        VALUES (v_record.bv, v_record.avg_finish)
-        ON CONFLICT (bv) DO UPDATE
-        SET avg_finish = v_record.avg_finish;
-    END LOOP;
-END;
-$$ LANGUAGE plpgsql;
-
--- CREATE TRIGGER update_video_aggregates_trigger
--- AFTER INSERT ON user_video_watch
--- FOR EACH ROW
--- EXECUTE PROCEDURE update_video_aggregates();
-
-CREATE OR REPLACE FUNCTION update_video_interactions_aggregates()
-RETURNS VOID AS $$
-DECLARE
-    v_record RECORD;
-BEGIN
-    FOR v_record IN SELECT v.bv, COUNT(uvi.is_liked) AS like_count, COUNT(uvi.is_coined) AS coin_count, COUNT(uvi.is_favorited) AS fav_count
-                    FROM videos v
-                    JOIN user_video_interaction uvi ON v.bv = uvi.bv
-                    GROUP BY v.bv
-    LOOP
-        -- 更新或插入到 video_interactions_aggregates 表
-        INSERT INTO video_interactions_aggregates(bv, like_count, coin_count, fav_count)
-        VALUES (v_record.bv, v_record.like_count, v_record.coin_count, v_record.fav_count)
-        ON CONFLICT (bv) DO UPDATE
-        SET like_count = v_record.like_count,
-            coin_count = v_record.coin_count,
-            fav_count = v_record.fav_count;
-    END LOOP;
-END;
-$$ LANGUAGE plpgsql;
-
--- CREATE TRIGGER update_video_interactions_aggregates_trigger
--- AFTER INSERT ON user_video_interaction
--- FOR EACH ROW
--- EXECUTE PROCEDURE update_video_interactions_aggregates();
-
-CREATE OR REPLACE FUNCTION update_video_stats()
-RETURNS VOID AS $$
-DECLARE
-    v_record RECORD;
-BEGIN
-    FOR v_record IN SELECT v.bv, COALESCE(via.like_count, 0) / NULLIF(via.like_count + vaa.avg_finish, 0) AS like_rate,
-                    COALESCE(via.coin_count, 0) / NULLIF(via.coin_count + vaa.avg_finish, 0) AS coin_rate,
-                    COALESCE(via.fav_count, 0) / NULLIF(via.fav_count + vaa.avg_finish, 0) AS fav_rate
-                    FROM videos v
-                    JOIN video_interactions_aggregates via ON v.bv = via.bv
-                    JOIN video_aggregates vaa ON v.bv = vaa.bv
-    LOOP
-        -- 更新或插入到 video_stats 表
-        INSERT INTO video_stats(bv, like_rate, coin_rate, fav_rate)
-        VALUES (v_record.bv, v_record.like_rate, v_record.coin_rate, v_record.fav_rate)
-        ON CONFLICT (bv) DO UPDATE
-        SET like_rate = v_record.like_rate,
-            coin_rate = v_record.coin_rate,
-            fav_rate = v_record.fav_rate;
-    END LOOP;
-END;
-$$ LANGUAGE plpgsql;
-
--- CREATE TRIGGER update_video_stats_trigger
--- AFTER INSERT ON user_video_interaction
--- FOR EACH ROW
--- EXECUTE PROCEDURE update_video_stats();
-
 
 
 

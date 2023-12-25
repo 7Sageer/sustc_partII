@@ -67,6 +67,30 @@ public class RecommenderServiceImpl implements io.sustc.service.RecommenderServi
 
     @Override
     public List<String> generalRecommendations(int pageSize, int pageNum) {
+        if(Global.need_to_update == true){
+            //call update_video_aggregates() update_video_interactions_aggregates() update_video_stats();
+            try (Connection conn = dataSource.getConnection();){
+                try (CallableStatement callableStatement = conn.prepareCall("{CALL update_video_aggregates()}")) {
+                    callableStatement.execute();
+                } catch (SQLException e) {
+                    e.printStackTrace();
+                }
+                try (CallableStatement callableStatement = conn.prepareCall("{CALL update_video_interactions_aggregates()}")) {
+                    callableStatement.execute();
+                } catch (SQLException e) {
+                    e.printStackTrace();
+                }
+                try (CallableStatement callableStatement = conn.prepareCall("{CALL update_video_stats()}")) {
+                    callableStatement.execute();
+                } catch (SQLException e) {
+                    e.printStackTrace();
+                }
+                Global.need_to_update = false;
+            } catch (SQLException e) {
+                e.printStackTrace();
+            }
+            Global.need_to_update = false;
+        }
         if (pageSize <= 0 || pageNum <= 0) {
             log.error("Invalid pageSize or pageNum");
             return null;
