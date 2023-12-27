@@ -12,7 +12,11 @@ CREATE TABLE users (
 
 -- AuthInfo Table
 CREATE TABLE auth_info (
+<<<<<<< HEAD
     mid BIGINT PRIMARY KEY,
+=======
+    mid BIGINT PRIMARY KEY REFERENCES users(mid),
+>>>>>>> 16068ffddc8e93f90a8dcf00b592af2e5c25a94c
     password VARCHAR(255),
     qq VARCHAR(255),
     wechat VARCHAR(255)
@@ -23,20 +27,33 @@ CREATE TABLE auth_info (
 CREATE TABLE videos (
     bv VARCHAR(50) PRIMARY KEY,
     title VARCHAR(255),
+<<<<<<< HEAD
     ownerMid BIGINT,
+=======
+    ownerMid BIGINT REFERENCES users(mid),
+>>>>>>> 16068ffddc8e93f90a8dcf00b592af2e5c25a94c
     commitTime TIMESTAMP,
     reviewTime TIMESTAMP,
     publicTime TIMESTAMP,
     duration INT,
     description TEXT,
     isPublic BOOLEAN,
+<<<<<<< HEAD
     reviewer BIGINT
+=======
+    reviewer BIGINT REFERENCES users(mid)
+>>>>>>> 16068ffddc8e93f90a8dcf00b592af2e5c25a94c
 );
 
 -- UserVideoInteraction Table
 CREATE TABLE user_video_interaction (
+<<<<<<< HEAD
     mid BIGINT,
     bv VARCHAR(50),
+=======
+    mid BIGINT REFERENCES users(mid),
+    bv VARCHAR(50) REFERENCES videos(bv),
+>>>>>>> 16068ffddc8e93f90a8dcf00b592af2e5c25a94c
     is_liked BOOLEAN DEFAULT FALSE,
     is_coined BOOLEAN DEFAULT FALSE,
     is_favorited BOOLEAN DEFAULT FALSE,
@@ -46,24 +63,39 @@ CREATE TABLE user_video_interaction (
 
 -- UserVideoWatch Table
 CREATE TABLE user_video_watch (
+<<<<<<< HEAD
     mid BIGINT,
     bv VARCHAR(50),
+=======
+    mid BIGINT REFERENCES users(mid),
+    bv VARCHAR(50) REFERENCES videos(bv),
+>>>>>>> 16068ffddc8e93f90a8dcf00b592af2e5c25a94c
     watch_time FLOAT,
     PRIMARY KEY (mid, bv)
 );
 
 -- UserRelationships Table
 CREATE TABLE user_relationships (
+<<<<<<< HEAD
     followerMid BIGINT,
     followingMid BIGINT,
+=======
+    followerMid BIGINT REFERENCES users(mid),
+    followingMid BIGINT REFERENCES users(mid),
+>>>>>>> 16068ffddc8e93f90a8dcf00b592af2e5c25a94c
     PRIMARY KEY (followerMid, followingMid)
 );
 
 -- Danmu Table
 CREATE TABLE danmus (
     id SERIAL PRIMARY KEY,
+<<<<<<< HEAD
     bv VARCHAR(50),
     mid BIGINT,
+=======
+    bv VARCHAR(50) REFERENCES videos(bv),
+    mid BIGINT REFERENCES users(mid),
+>>>>>>> 16068ffddc8e93f90a8dcf00b592af2e5c25a94c
     time FLOAT,
     content TEXT,
     postTime TIMESTAMP
@@ -71,8 +103,13 @@ CREATE TABLE danmus (
 
 -- DanmuLike Table
 CREATE TABLE danmu_like (
+<<<<<<< HEAD
     danmuId INT,
     mid BIGINT,
+=======
+    danmuId INT REFERENCES danmus(id),
+    mid BIGINT REFERENCES users(mid),
+>>>>>>> 16068ffddc8e93f90a8dcf00b592af2e5c25a94c
     PRIMARY KEY (danmuId, mid)
 );
 
@@ -90,10 +127,33 @@ CREATE TABLE video_stats (
     fav_rate FLOAT
 );
 
+<<<<<<< HEAD
 CREATE TABLE video_aggregates (
     bv VARCHAR(50) PRIMARY KEY,
     avg_finish FLOAT
 );
+=======
+-- -- UserVideoFavorite Table
+-- CREATE TABLE user_video_favorite (
+--     mid BIGINT REFERENCES users(mid),
+--     bv VARCHAR(50) REFERENCES videos(bv),
+--     PRIMARY KEY (mid, bv)
+-- );
+--
+-- -- UserVideoLike Table
+-- CREATE TABLE user_video_like (
+--     mid BIGINT REFERENCES users(mid),
+--     bv VARCHAR(50) REFERENCES videos(bv),
+--     PRIMARY KEY (mid, bv)
+-- );
+--
+-- -- UserVideoCoin Table
+-- CREATE TABLE user_video_coin (
+--     mid BIGINT REFERENCES users(mid),
+--     bv VARCHAR(50) REFERENCES videos(bv),
+--     PRIMARY KEY (mid, bv)
+-- );
+>>>>>>> 16068ffddc8e93f90a8dcf00b592af2e5c25a94c
 
 
 create function recommend_videos_for_user(current_user_id bigint, pagesize integer, pagenum integer)
@@ -165,6 +225,11 @@ BEGIN
 END;
 $$;
 
+<<<<<<< HEAD
+=======
+alter function update_video_aggregates() owner to postgres;
+
+>>>>>>> 16068ffddc8e93f90a8dcf00b592af2e5c25a94c
 create function update_video_interactions_aggregates() returns void
     language plpgsql
 as
@@ -188,14 +253,20 @@ BEGIN
 END;
 $$;
 
+<<<<<<< HEAD
 
 create function update_video_stats() returns void
+=======
+alter function update_video_interactions_aggregates() owner to postgres;
+create function update_video_interactions_aggregates() returns void
+>>>>>>> 16068ffddc8e93f90a8dcf00b592af2e5c25a94c
     language plpgsql
 as
 $$
 DECLARE
     v_record RECORD;
 BEGIN
+<<<<<<< HEAD
     FOR v_record IN SELECT v.bv, COALESCE(via.like_count, 0) / NULLIF(via.like_count + vaa.avg_finish, 0) AS like_rate,
                     COALESCE(via.coin_count, 0) / NULLIF(via.coin_count + vaa.avg_finish, 0) AS coin_rate,
                     COALESCE(via.fav_count, 0) / NULLIF(via.fav_count + vaa.avg_finish, 0) AS fav_rate
@@ -213,3 +284,25 @@ BEGIN
     END LOOP;
 END;
 $$;
+=======
+    FOR v_record IN SELECT v.bv, COUNT(uvi.is_liked) AS like_count, COUNT(uvi.is_coined) AS coin_count, COUNT(uvi.is_favorited) AS fav_count
+                    FROM videos v
+                    JOIN user_video_interaction uvi ON v.bv = uvi.bv
+                    GROUP BY v.bv
+    LOOP
+        -- 更新或插入到 video_interactions_aggregates 表
+        INSERT INTO video_interactions_aggregates(bv, like_count, coin_count, fav_count)
+        VALUES (v_record.bv, v_record.like_count, v_record.coin_count, v_record.fav_count)
+        ON CONFLICT (bv) DO UPDATE
+        SET like_count = v_record.like_count,
+            coin_count = v_record.coin_count,
+            fav_count = v_record.fav_count;
+    END LOOP;
+END;
+$$;
+
+alter function update_video_interactions_aggregates() owner to postgres;
+
+
+
+>>>>>>> 16068ffddc8e93f90a8dcf00b592af2e5c25a94c
