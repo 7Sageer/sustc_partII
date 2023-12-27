@@ -337,6 +337,7 @@ public class BenchmarkService {
                     pass.incrementAndGet();
                 } else {
                     log.debug("Wrong answer for {}: expected {}, got {}", it.getKey(), watched, res);
+                    log.debug("User {} has watched video {}, liked danmu {} of it, but got {}", it.getKey(), danmuBv, danmuId, res);
                 }
             } catch (Exception e) {
                 log.error("Exception thrown for {}", it.getKey(), e);

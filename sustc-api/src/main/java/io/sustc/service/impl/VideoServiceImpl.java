@@ -471,7 +471,7 @@ public class VideoServiceImpl implements VideoService {
                 return false;
             }
             if(!isUserWatched(auth, bv, conn)){
-                log.error("Like video failed: user has not watched the video");
+                log.error("Like video failed: user has not watched the video: {} {}", auth.getMid(), bv);
                 return false;
             }
 

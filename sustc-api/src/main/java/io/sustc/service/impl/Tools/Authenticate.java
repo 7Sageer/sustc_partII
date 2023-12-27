@@ -20,15 +20,15 @@ public class Authenticate {
         ResultSet rs = ps.executeQuery();
 
         if(!rs.next()){
-            log.error("Authentication failed: mid not found in auth_info");
+            //log.error("Authentication failed: mid not found in auth_info");
             return null;
         }
         if (auth.getQq() != null && !auth.getQq().equals(rs.getString("qq"))) {
-            log.error("Authentication failed: qq not match");
+            //log.error("Authentication failed: qq not match");
             return null;
         }
         if (auth.getWechat() != null && !auth.getWechat().equals(rs.getString("wechat"))) {
-            log.error("Authentication failed: wechat not match");
+            //log.error("Authentication failed: wechat not match");
             return null;
         }
         long mid = getMid(auth, conn);
@@ -42,10 +42,10 @@ public class Authenticate {
         ps.setLong(1, mid);
         ResultSet rs = ps.executeQuery();
         if (!rs.next()) {
-            log.error("Authentication failed: could not found user");
+            //log.error("Authentication failed: could not found user");
             return null;
         }
-        log.info("Authentication success: mid {} is {}", mid, rs.getString("identity").toUpperCase());
+        //log.info("Authentication success: mid {} is {}", mid, rs.getString("identity").toUpperCase());
         return Identity.valueOf(rs.getString("identity").toUpperCase());
     }
 

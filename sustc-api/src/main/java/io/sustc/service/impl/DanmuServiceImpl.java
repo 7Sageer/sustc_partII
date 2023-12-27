@@ -108,8 +108,10 @@ public class DanmuServiceImpl implements DanmuService {
         try (Connection conn = dataSource.getConnection();) {
 
             if (auth == null || Authenticate.authenticate(auth, conn) == null) {
+                log.error("Invalid auth: {}", auth);
                 return false;
             } else {
+                auth.setMid(Authenticate.getMid(auth, conn));
                 String isPublic = "SELECT * FROM danmus WHERE id = ?";
                 PreparedStatement ps1 = conn.prepareStatement(isPublic);
                 ps1.setLong(1, id);
@@ -139,7 +141,6 @@ public class DanmuServiceImpl implements DanmuService {
                     ps.setLong(1, auth.getMid());
                     ps.setLong(2, id);
                     ps.executeUpdate();
-                    log.info("Successfully cancel like danmu: {}", id);
                     return false;
                 } else {
                     String sql = "INSERT INTO danmu_like (mid, danmuid) VALUES (?, ?)";
@@ -147,7 +148,6 @@ public class DanmuServiceImpl implements DanmuService {
                     ps.setLong(1, auth.getMid());
                     ps.setLong(2, id);
                     ps.executeUpdate();
-                    log.info("Successfully like danmu: {}", id);
                     return true;
                 }
             }

@@ -147,19 +147,11 @@ public class UserServiceImpl implements UserService {
                 relationps.setLong(2, mid);
                 videops.setLong(1, mid);
                 
-                String disableSql = "SET session_replication_role = 'replica'";
-                try (PreparedStatement disableStmt = conn.prepareStatement(disableSql)) {
-                    disableStmt.execute();
-                }
-                userps.executeUpdate();
-                authps.executeUpdate();
                 relationps.executeUpdate();
+                authps.executeUpdate();
                 videops.executeUpdate();
+                userps.executeUpdate();
 
-                String enableSql = "SET session_replication_role = 'origin'";
-                try (PreparedStatement enableStmt = conn.prepareStatement(enableSql)) {
-                    enableStmt.execute();
-                }
                 log.info("Successfully delete user: " + mid);
                 return true;
             }
