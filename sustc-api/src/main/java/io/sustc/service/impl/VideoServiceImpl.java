@@ -5,7 +5,11 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
+import javax.crypto.Mac;
 import javax.sql.DataSource;
 import java.sql.Connection;
 
@@ -163,90 +167,94 @@ public class VideoServiceImpl implements VideoService {
         return false;
     }
 
-    @Override
     public List<String> searchVideo(AuthInfo auth, String keywords, int pageSize, int pageNum) {
-        try (Connection conn = dataSource.getConnection();) {
-            if (keywords == null || keywords == "") {
-                log.error("Search video failed: keywords is null");
-                return null;
-            } else if (Authenticate.authenticate(auth, conn) == null) {
-                log.error("Search video failed: authentication failed");
-                return null;
-            } else {
-                auth.setMid(Authenticate.getMid(auth, conn));
-                try {
-                    // split keywords by space
-                    String[] keyword = keywords.split(" ");
-                    String titlesql = "SELECT bv FROM videos WHERE title LIKE ?;";
-                    String descriptionsql = "SELECT bv FROM videos WHERE description LIKE ?;";
-                    PreparedStatement titleps = conn.prepareStatement(titlesql);
-                    PreparedStatement descriptionps = conn.prepareStatement(descriptionsql);
-                    Map<String, Integer> viewMap = new HashMap<>();
-                    Map<String, Integer> countMap = new HashMap<>();
-
-                    for (int i = 0; i < keyword.length; i++) {
-                        titleps.setString(1, "%" + keyword[i] + "%");
-                        descriptionps.setString(1, "%" + keyword[i] + "%");
-
-                        ResultSet titlers = titleps.executeQuery();
-                        while (titlers.next()) {
-                            String bv = titlers.getString("bv");
-                            int viewCount = getViewCount(bv, conn);
-                            viewMap.put(bv, viewCount);
-                            countMap.put(bv, countMap.getOrDefault(bv, 0) + 1);
-                        }
-
-                        ResultSet descriptionsrs = descriptionps.executeQuery();
-                        while (descriptionsrs.next()) {
-                            String bv = descriptionsrs.getString("bv");
-                            int viewCount = getViewCount(bv, conn);
-                            viewMap.put(bv, viewCount);
-                            countMap.put(bv, countMap.getOrDefault(bv, 0) + 1);
-                        }
-                    }
-
-                    // sort by count, then by view count
-                    List<Map.Entry<String, Integer>> list = new ArrayList<>(countMap.entrySet());
-                    Collections.sort(list, new Comparator<Map.Entry<String, Integer>>() {
-                        @Override
-                        public int compare(Map.Entry<String, Integer> o1, Map.Entry<String, Integer> o2) {
-                            int countCompare = o2.getValue().compareTo(o1.getValue());
-                            if (countCompare == 0) {
-                                return viewMap.get(o2.getKey()).compareTo(viewMap.get(o1.getKey()));
-                            }
-                            return countCompare;
-                        }
-                    });
-
-                    List<String> result = new ArrayList<>();
-                    for (Map.Entry<String, Integer> entry : list) {
-                        result.add(entry.getKey());
-                    }
-                    // caculate the pages
-                    int totalPage = result.size() / pageSize;
-                    if (result.size() % pageSize != 0) {
-                        totalPage++;
-                    }
-                    if (pageNum > totalPage || pageNum < 1) {
-                        log.error("Search video failed: page number out of range");
-                        return null;
-                    }
-                    int start = (pageNum - 1) * pageSize;
-                    int end = pageNum * pageSize;
-                    if (end > result.size()) {
-                        end = result.size();
-                    }
-                    log.info("Successfully search video: {}", result.subList(start, end));
-                    return result.subList(start, end);
-                } catch (SQLException e) {
-                    e.printStackTrace();
-                }
-            }
-        } catch (SQLException e) {
-            e.printStackTrace();
+        if (keywords == null || keywords.isEmpty()) {
+            log.error("Search video failed: keywords is null or empty");
+            return null;
         }
 
-        return null;
+        try (Connection conn = dataSource.getConnection()) {
+            if (Authenticate.authenticate(auth, conn) == null) {
+                log.error("Search video failed: authentication failed");
+                return null;
+            }
+
+            auth.setMid(Authenticate.getMid(auth, conn));
+            String[] keywordArray = keywords.split("\\s+");
+
+            String sql = "SELECT v.bv, v.title, v.description, u.name as ownerName "
+                       + "FROM videos v "
+                       + "JOIN users u ON v.ownermid = u.mid";
+
+            Map<String, Integer> countMap = new HashMap<>();
+            Map<String, Integer> viewMap = new HashMap<>();
+
+            for (String keyword : keywordArray) {
+                try (PreparedStatement ps = conn.prepareStatement(sql)) {
+                    ResultSet rs = ps.executeQuery();
+                    while (rs.next()) {
+                        String bv = rs.getString("bv");
+                        String ownerName = rs.getString("ownerName");
+                        int matches = countMatches(rs, keyword, ownerName);
+                        if (matches > 0) {
+                            int currentCount = countMap.getOrDefault(bv, 0);
+                            countMap.put(bv, currentCount + matches);
+                            viewMap.putIfAbsent(bv, getViewCount(bv, conn));
+                        }
+                    }
+                }
+            }
+
+            List<String> sortedBvs = sortResults(countMap, viewMap);
+            return paginateResults(sortedBvs, pageSize, pageNum);
+        } catch (SQLException e) {
+            log.error("Search video failed: SQL exception", e);
+            return null;
+        }
+    }
+
+    private int countMatches(ResultSet rs, String keyword, String ownerName) throws SQLException {
+        int matches = 0;
+        Pattern pattern = Pattern.compile(Pattern.quote(keyword), Pattern.CASE_INSENSITIVE);
+
+        matches += findMatches(pattern, rs.getString("title"));
+        matches += findMatches(pattern, rs.getString("description"));
+        if (ownerName != null) {
+            matches += findMatches(pattern, ownerName);
+        }
+
+        return matches;
+    }
+
+    private int findMatches(Pattern pattern, String text) {
+        Matcher matcher = pattern.matcher(text);
+        int matches = 0;
+        while (matcher.find()) {
+            matches++;
+        }
+        return matches;
+    }
+
+    private List<String> sortResults(Map<String, Integer> countMap, Map<String, Integer> viewMap) {
+        return countMap.entrySet().stream()
+                .sorted((entry1, entry2) -> {
+                    int countCompare = entry2.getValue().compareTo(entry1.getValue());
+                    if (countCompare != 0)
+                        return countCompare;
+                    return viewMap.get(entry2.getKey()).compareTo(viewMap.get(entry1.getKey()));
+                })
+                .map(Map.Entry::getKey)
+                .collect(Collectors.toList());
+    }
+
+    private List<String> paginateResults(List<String> sortedBvs, int pageSize, int pageNum) {
+        int start = (pageNum - 1) * pageSize;
+        int end = Math.min(start + pageSize, sortedBvs.size());
+        if (start < 0 || start > sortedBvs.size() || pageSize <= 0) {
+            log.error("Invalid pagination parameters");
+            return Collections.emptyList();
+        }
+        return new ArrayList<>(sortedBvs.subList(start, end));
     }
 
     @Override
@@ -287,19 +295,19 @@ public class VideoServiceImpl implements VideoService {
     @Override
     public Set<Integer> getHotspot(String bv) {
         try (Connection conn = dataSource.getConnection();) {
-    
+
             if (!checkVideoExists(bv, conn)) {
                 log.error("Get hotspot failed: bv not found");
                 return null;
             }
-    
+
             String video = "SELECT duration FROM videos WHERE bv = ?;";
             PreparedStatement videops = conn.prepareStatement(video);
             videops.setString(1, bv);
             ResultSet videors = videops.executeQuery();
             videors.next();
             int duration = (int) videors.getFloat("duration");
-    
+
             String danmu = "SELECT time FROM danmus WHERE bv = ?;";
             PreparedStatement danmups = conn.prepareStatement(danmu);
             danmups.setString(1, bv);
@@ -308,7 +316,7 @@ public class VideoServiceImpl implements VideoService {
                 Scores.add(0);
             }
             ResultSet danmurs = danmups.executeQuery();
-    
+
             while (danmurs.next()) {
                 Float time = danmurs.getFloat("time");
                 Scores.set((int) (time / 10), Scores.get((int) (time / 10)) + 1);
@@ -324,32 +332,30 @@ public class VideoServiceImpl implements VideoService {
                     allSameScore = false;
                 }
             }
-    
+
             if (allSameScore) {
                 return new HashSet<>();
             }
-    
+
             Set<Integer> result = new HashSet<>();
             for (int i = 0; i < Scores.size(); i++) {
                 if (Scores.get(i) == maxScore) {
                     result.add(i);
                 }
             }
-    
+
             if (result.isEmpty()) {
                 log.error("Get hotspot failed: no danmu");
                 return null;
             }
-    
-            //log.info("Successfully get hotspot: {}", result);
+
+            // log.info("Successfully get hotspot: {}", result);
             return result;
         } catch (SQLException e) {
             e.printStackTrace();
         }
         return null;
     }
-    
-    
 
     @Override
     public boolean reviewVideo(AuthInfo auth, String bv) {
@@ -409,10 +415,10 @@ public class VideoServiceImpl implements VideoService {
                 log.error("Coin video failed: user is the owner of the video");
                 return false;
             }
-            if (!canUserViewVideo(auth, bv, conn)) {
-                log.error("Coin video failed: user cannot view the video");
-                return false;
-            }
+            // if (!canUserViewVideo(auth, bv, conn)) {
+            // log.error("Coin video failed: user cannot view the video");
+            // return false;
+            // }
 
             String coinnum = "SELECT coin FROM users WHERE mid = ?;";
             PreparedStatement coinps = conn.prepareStatement(coinnum);
@@ -426,10 +432,7 @@ public class VideoServiceImpl implements VideoService {
             }
 
             Boolean isCoined = getUserVideoInteractionStatus(auth, bv, "is_coined", conn);
-            if (isCoined != null) {
-                log.error("Coin video failed: user has already coined the video");
-                return false;
-            } else {
+            if (isCoined == null) {
                 String sql = "INSERT INTO user_video_interaction (mid, bv, is_favorited, is_coined, is_liked) VALUES (?, ?, ?, ?, ?);";
                 PreparedStatement ps = conn.prepareStatement(sql);
                 ps.setLong(1, auth.getMid());
@@ -440,6 +443,16 @@ public class VideoServiceImpl implements VideoService {
                 ps.executeUpdate();
                 sql = "UPDATE users SET coin = ? WHERE mid = ?;";
                 ps = conn.prepareStatement(sql);
+                ps.setInt(1, coin - 1);
+                ps.setLong(2, auth.getMid());
+                ps.executeUpdate();
+            } else if (isCoined == true) {
+                log.error("Coin video failed: user has already coined the video");
+                return false;
+            } else {
+                updateUserVideoInteraction(auth, bv, "is_coined", true, conn);
+                String sql = "UPDATE users SET coin = ? WHERE mid = ?;";
+                PreparedStatement ps = conn.prepareStatement(sql);
                 ps.setInt(1, coin - 1);
                 ps.setLong(2, auth.getMid());
                 ps.executeUpdate();
@@ -466,20 +479,21 @@ public class VideoServiceImpl implements VideoService {
                 log.error("Like video failed: user is the owner of the video");
                 return false;
             }
-            if (!canUserViewVideo(auth, bv, conn)) {
-                log.error("Like video failed: user cannot view the video");
-                return false;
-            }
-            if(!isUserWatched(auth, bv, conn)){
-                log.error("Like video failed: user has not watched the video: {} {}", auth.getMid(), bv);
-                return false;
-            }
+            // if (!canUserViewVideo(auth, bv, conn)) {
+            // log.error("Like video failed: user cannot view the video");
+            // return false;
+            // }
+            // if(!isUserWatched(auth, bv, conn)){
+            // log.error("Like video failed: user has not watched the video: {} {}",
+            // auth.getMid(), bv);
+            // return false;
+            // }
 
             Boolean isLiked = getUserVideoInteractionStatus(auth, bv, "is_liked", conn);
             Global.need_to_update = true;
             if (isLiked != null) {
                 updateUserVideoInteraction(auth, bv, "is_liked", !isLiked, conn);
-                return false;
+                return !isLiked;
             } else {
                 String sql = "INSERT INTO user_video_interaction (mid, bv, is_favorited, is_coined, is_liked) VALUES (?, ?, ?, ?, ?);";
                 PreparedStatement ps = conn.prepareStatement(sql);
@@ -491,7 +505,7 @@ public class VideoServiceImpl implements VideoService {
                 ps.executeUpdate();
                 return true;
             }
-            
+
         } catch (SQLException e) {
             e.printStackTrace();
             return false;
@@ -501,7 +515,6 @@ public class VideoServiceImpl implements VideoService {
     @Override
     public boolean collectVideo(AuthInfo auth, String bv) {
         try (Connection conn = dataSource.getConnection();) {
-
             Identity identity = Authenticate.authenticate(auth, conn);
             auth.setMid(Authenticate.getMid(auth, conn));
             if (identity == null || !checkVideoExists(bv, conn)) {
@@ -512,19 +525,21 @@ public class VideoServiceImpl implements VideoService {
                 log.error("Collect video failed: user is the owner of the video");
                 return false;
             }
-            if (!canUserViewVideo(auth, bv, conn)) {
-                log.error("Collect video failed: user cannot view the video");
-                return false;
-            }
-            if(!isUserWatched(auth, bv, conn)){
-                log.error("Collect video failed: user has not watched the video");
-                return false;
-            }
+            // if (!canUserViewVideo(auth, bv, conn)) {
+            // log.error("Collect video failed: user cannot view the video");
+            // return false;
+            // }
+            // if(!isUserWatched(auth, bv, conn)){
+            // log.error("Collect video failed: user has not watched the video");
+            // return false;
+            // }
             Global.need_to_update = true;
             Boolean isFavorited = getUserVideoInteractionStatus(auth, bv, "is_favorited", conn);
             if (isFavorited != null) {
                 updateUserVideoInteraction(auth, bv, "is_favorited", !isFavorited, conn);
-                return false;
+                // log.info("Successfully change collect video status: {} {} {}", auth.getMid(),
+                // bv, !isFavorited);
+                return !isFavorited;
             } else {
                 String sql = "INSERT INTO user_video_interaction (mid, bv, is_favorited, is_coined, is_liked) VALUES (?, ?, ?, ?, ?);";
                 PreparedStatement ps = conn.prepareStatement(sql);
@@ -534,10 +549,9 @@ public class VideoServiceImpl implements VideoService {
                 ps.setBoolean(4, false);
                 ps.setBoolean(5, false);
                 ps.executeUpdate();
+                // log.info("Successfully collect video: {}", bv);
                 return true;
             }
-            
-            
         } catch (SQLException e) {
             e.printStackTrace();
             return false;
@@ -562,6 +576,8 @@ public class VideoServiceImpl implements VideoService {
             ps.setLong(2, auth.getMid());
             try (ResultSet rs = ps.executeQuery()) {
                 if (rs.next()) {
+                    // log.info("Successfully get user video interaction status: {} {} {}",
+                    // auth.getMid(), bv, column);
                     return rs.getBoolean(column);
                 } else {
                     return null;
@@ -611,25 +627,26 @@ public class VideoServiceImpl implements VideoService {
         }
     }
 
-    private boolean canUserViewVideo(AuthInfo auth, String bv, Connection conn) throws SQLException {
-        String sql = "SELECT * FROM videos WHERE bv = ?;";
-        try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            Identity identity = Authenticate.authenticate(auth, conn);
-            ps.setString(1, bv);
-            try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) {
-                    // get public time
-                    Timestamp publicTime = rs.getTimestamp("committime");
-                    if (System.currentTimeMillis() < publicTime.getTime()) {
-                        return identity == Identity.SUPERUSER || isUserVideoOwner(auth, bv, conn);
-                    }
+    // private boolean canUserViewVideo(AuthInfo auth, String bv, Connection conn)
+    // throws SQLException {
+    // String sql = "SELECT * FROM videos WHERE bv = ?;";
+    // try (PreparedStatement ps = conn.prepareStatement(sql)) {
+    // Identity identity = Authenticate.authenticate(auth, conn);
+    // ps.setString(1, bv);
+    // try (ResultSet rs = ps.executeQuery()) {
+    // if (rs.next()) {
+    // // get public time
+    // Timestamp publicTime = rs.getTimestamp("committime");
+    // if (System.currentTimeMillis() < publicTime.getTime()) {
+    // return identity == Identity.SUPERUSER || isUserVideoOwner(auth, bv, conn);
+    // }
 
-                    return rs.getBoolean("ispublic") || identity == Identity.SUPERUSER;
-                }
-                return false;
-            }
-        }
-    }
+    // return rs.getBoolean("ispublic") || identity == Identity.SUPERUSER;
+    // }
+    // return false;
+    // }
+    // }
+    // }
 
     private int getViewCount(String bv, Connection conn) throws SQLException {
         String sql = "SELECT COUNT(mid) as view_count FROM user_video_watch WHERE bv = ?";
@@ -643,15 +660,19 @@ public class VideoServiceImpl implements VideoService {
         }
     }
 
-    private boolean isUserWatched (AuthInfo auth, String bv, Connection conn) throws SQLException {
-        String sql = "SELECT * FROM user_video_watch WHERE bv = ? AND mid = ?;";
-        try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setString(1, bv);
-            ps.setLong(2, auth.getMid());
-            try (ResultSet rs = ps.executeQuery()) {
-                return rs.next();
-            }
-        }
-    }
+    // private boolean isUserWatched (AuthInfo auth, String bv, Connection conn)
+    // throws SQLException {
+    // String sql = "SELECT * FROM user_video_watch WHERE bv = ? AND mid = ?;";
+    // try (PreparedStatement ps = conn.prepareStatement(sql)) {
+    // ps.setString(1, bv);
+    // ps.setLong(2, auth.getMid());
+    // try (ResultSet rs = ps.executeQuery()) {
+    // if(rs.next()){
+    // return true;
+    // }
+    // return false;
+    // }
+    // }
+    // }
 
 }

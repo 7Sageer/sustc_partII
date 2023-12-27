@@ -135,21 +135,25 @@ public class UserServiceImpl implements UserService {
                 String authsql = "DELETE FROM auth_info WHERE mid = ?";
                 String relationsql = "DELETE FROM user_relationships WHERE followermid = ? OR followingmid = ?";
                 String videosql = "DELETE FROM videos WHERE ownermid = ?";
+                String watchsql = "DELETE FROM user_video_watch WHERE mid = ?";
 
                 PreparedStatement userps = conn.prepareStatement(usersql);
                 PreparedStatement authps = conn.prepareStatement(authsql);
                 PreparedStatement relationps = conn.prepareStatement(relationsql);
                 PreparedStatement videops = conn.prepareStatement(videosql);
+                PreparedStatement watchps = conn.prepareStatement(watchsql);
 
                 userps.setLong(1, mid);
                 authps.setLong(1, mid);
                 relationps.setLong(1, mid);
                 relationps.setLong(2, mid);
                 videops.setLong(1, mid);
+                watchps.setLong(1, mid);
                 
                 relationps.executeUpdate();
                 authps.executeUpdate();
                 videops.executeUpdate();
+                watchps.executeUpdate();
                 userps.executeUpdate();
 
                 log.info("Successfully delete user: " + mid);

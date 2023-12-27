@@ -90,7 +90,6 @@ CREATE TABLE video_stats (
     fav_rate FLOAT
 );
 
-<<<<<<< HEAD
 CREATE TABLE video_aggregates (
     bv VARCHAR(50) PRIMARY KEY,
     avg_finish FLOAT
@@ -120,7 +119,6 @@ BEGIN
 END; $$
 LANGUAGE plpgsql;
 
-=======
 -- -- UserVideoFavorite Table
 -- CREATE TABLE user_video_favorite (
 --     mid BIGINT REFERENCES users(mid),
