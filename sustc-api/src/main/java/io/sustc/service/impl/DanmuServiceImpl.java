@@ -41,12 +41,18 @@ public class DanmuServiceImpl implements DanmuService {
                     log.error("Cannot find video or video is not public: {}", bv);
                     return -1;
                 }
-                String videoduration = "SELECT duration FROM videos WHERE bv = ?";
-                PreparedStatement ps2 = conn.prepareStatement(videoduration);
-                ps2.setString(1, bv);
+                float duration = rs1.getFloat("duration");
+                if (time < 0 || time > duration) {
+                    log.error("Invalid time: {}", time);
+                    return -1;
+                }
+                String isWatched = "SELECT * FROM user_video_watch WHERE mid = ? AND bv = ?";
+                PreparedStatement ps2 = conn.prepareStatement(isWatched);
+                ps2.setLong(1, auth.getMid());
+                ps2.setString(2, bv);
                 ResultSet rs2 = ps2.executeQuery();
-                if (rs2.next() && time > rs2.getFloat("duration")) {
-                    log.error("Time out of range: {}", time);
+                if (!rs2.next()) {
+                    log.error("User has not watched video: {}", bv);
                     return -1;
                 }
                 String sql = "INSERT INTO danmus (bv, mid, content, time, posttime) VALUES (?, ?, ?, ?, ?)";
@@ -60,15 +66,9 @@ public class DanmuServiceImpl implements DanmuService {
                 ResultSet rs = ps.getGeneratedKeys();
                 if (rs.next()) {
                     long id = rs.getLong(1);
-                    rs.close();
-                    ps.close();
-                    conn.close();
-                    log.info("Successfully send danmu: {}", id);
+                    //log.info("Successfully send danmu: {}", id);
                     return id;
                 }
-                rs.close();
-                ps.close();
-                conn.close();
                 return 0;
             }
         } catch (Exception e) {
@@ -95,7 +95,7 @@ public class DanmuServiceImpl implements DanmuService {
             while (rs.next()) {
                 list.add(rs.getLong("id"));
             }
-            log.info("Successfully display danmu: {} were found", list.size());
+            //log.info("Successfully display danmu: {} were found", list.size());
             return list;
         } catch (Exception e) {
             e.printStackTrace();
@@ -110,16 +110,46 @@ public class DanmuServiceImpl implements DanmuService {
             if (auth == null || Authenticate.authenticate(auth, conn) == null) {
                 return false;
             } else {
+                String isPublic = "SELECT * FROM danmus WHERE id = ?";
+                PreparedStatement ps1 = conn.prepareStatement(isPublic);
+                ps1.setLong(1, id);
+                ResultSet rs1 = ps1.executeQuery();
+                if (!rs1.next()) {
+                    log.error("Cannot find danmu: {}", id);
+                    return false;
+                }
+                String isWatched = "SELECT * FROM user_video_watch WHERE mid = ? AND bv = ?";
+                PreparedStatement ps2 = conn.prepareStatement(isWatched);
+                ps2.setLong(1, auth.getMid());
+                ps2.setString(2, rs1.getString("bv"));
+                ResultSet rs2 = ps2.executeQuery();
+                if (!rs2.next()) {
+                    log.error("User has not watched video: {}", id);
+                    return false;
+                }
                 auth.setMid(Authenticate.getMid(auth, conn));
-                String sql = "INSERT INTO danmu_like (mid, danmuid) VALUES (?, ?)";
-                PreparedStatement ps = conn.prepareStatement(sql);
-                ps.setLong(1, auth.getMid());
-                ps.setLong(2, id);
-                ps.executeUpdate();
-                ps.close();
-                conn.close();
-                log.info("Successfully like danmu: {}", id);
-                return true;
+                String islike = "SELECT * FROM danmu_like WHERE mid = ? AND danmuid = ?";
+                PreparedStatement ps3 = conn.prepareStatement(islike);
+                ps3.setLong(1, auth.getMid());
+                ps3.setLong(2, id);
+                ResultSet rs3 = ps3.executeQuery();
+                if (rs3.next()) {
+                    String sql = "DELETE FROM danmu_like WHERE mid = ? AND danmuid = ?";
+                    PreparedStatement ps = conn.prepareStatement(sql);
+                    ps.setLong(1, auth.getMid());
+                    ps.setLong(2, id);
+                    ps.executeUpdate();
+                    log.info("Successfully cancel like danmu: {}", id);
+                    return false;
+                } else {
+                    String sql = "INSERT INTO danmu_like (mid, danmuid) VALUES (?, ?)";
+                    PreparedStatement ps = conn.prepareStatement(sql);
+                    ps.setLong(1, auth.getMid());
+                    ps.setLong(2, id);
+                    ps.executeUpdate();
+                    log.info("Successfully like danmu: {}", id);
+                    return true;
+                }
             }
         } catch (Exception e) {
             e.printStackTrace();

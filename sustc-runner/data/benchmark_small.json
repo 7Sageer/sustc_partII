@@ -2,17 +2,17 @@
   {
     "id": 1,
     "passCnt": null,
-    "elapsedTime": 279127
+    "elapsedTime": 281878
   },
   {
     "id": 2,
     "passCnt": 20,
-    "elapsedTime": 212
+    "elapsedTime": 219
   },
   {
     "id": 3,
     "passCnt": 61,
-    "elapsedTime": 35
+    "elapsedTime": 47
   },
   {
     "id": 4,
@@ -22,37 +22,37 @@
   {
     "id": 5,
     "passCnt": 43,
-    "elapsedTime": 1726
+    "elapsedTime": 1815
   },
   {
     "id": 6,
     "passCnt": 11,
-    "elapsedTime": 1107
+    "elapsedTime": 944
   },
   {
     "id": 7,
     "passCnt": 27,
-    "elapsedTime": 3022
+    "elapsedTime": 2844
   },
   {
     "id": 8,
     "passCnt": 142,
-    "elapsedTime": 5400
+    "elapsedTime": 7900
   },
   {
     "id": 9,
     "passCnt": 382,
-    "elapsedTime": 23
+    "elapsedTime": 18
   },
   {
     "id": 10,
     "passCnt": 1016,
-    "elapsedTime": 52
+    "elapsedTime": 44
   },
   {
     "id": 11,
     "passCnt": 500,
-    "elapsedTime": 320
+    "elapsedTime": 247
   },
   {
     "id": 12,
@@ -62,56 +62,56 @@
   {
     "id": 13,
     "passCnt": 511,
-    "elapsedTime": 235
+    "elapsedTime": 163
   },
   {
     "id": 14,
     "passCnt": 686,
-    "elapsedTime": 219
+    "elapsedTime": 193
   },
   {
     "id": 15,
     "passCnt": 644,
-    "elapsedTime": 188
+    "elapsedTime": 169
   },
   {
     "id": 16,
     "passCnt": 184,
-    "elapsedTime": 65
+    "elapsedTime": 39
   },
   {
     "id": 17,
     "passCnt": 273,
-    "elapsedTime": 58
+    "elapsedTime": 42
   },
   {
     "id": 18,
     "passCnt": 184,
-    "elapsedTime": 34
+    "elapsedTime": 44
   },
   {
     "id": 19,
-    "passCnt": 43,
-    "elapsedTime": 16
+    "passCnt": 35,
+    "elapsedTime": 12
   },
   {
     "id": 20,
     "passCnt": 6,
-    "elapsedTime": 63
+    "elapsedTime": 54
   },
   {
     "id": 21,
-    "passCnt": 63,
-    "elapsedTime": 318
+    "passCnt": 55,
+    "elapsedTime": 376
   },
   {
     "id": 22,
-    "passCnt": 171,
-    "elapsedTime": 169
+    "passCnt": 199,
+    "elapsedTime": 147
   },
   {
     "id": 23,
     "passCnt": 87,
-    "elapsedTime": 37
+    "elapsedTime": 27
   }
 ]

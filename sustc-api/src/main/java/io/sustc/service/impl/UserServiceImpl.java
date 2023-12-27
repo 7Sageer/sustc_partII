@@ -49,7 +49,7 @@ public class UserServiceImpl implements UserService {
             req.setSex(Gender.UNKNOWN);
         }
         LocalDate birthday = ParseDate.parseDate(req.getBirthday());
-        if (birthday == null || birthday.equals(LocalDate.of(2000, 1, 1))){
+        if (birthday != null && birthday.equals(LocalDate.of(2000, 1, 1))){
             log.error("Date parse failed: {}", req.getBirthday());
             return -1;
         }
@@ -82,7 +82,7 @@ public class UserServiceImpl implements UserService {
 
     private long createNewUser(RegisterUserReq req, Connection conn) throws SQLException {
 
-        long mid = System.currentTimeMillis();
+        long mid = UUID.randomUUID().getMostSignificantBits() & Long.MAX_VALUE;
 
         String user = "INSERT INTO users (mid, name, sex, birthday, level, sign, identity, coin) VALUES (?, ?, ?, ?, ?, ?, ?, ?);";
         String auth = "INSERT INTO auth_info (mid, password, qq, wechat) VALUES (?, ?, ?, ?);";
@@ -93,7 +93,10 @@ public class UserServiceImpl implements UserService {
         psuser.setLong(1, mid);
         psuser.setString(2, req.getName());
         psuser.setString(3, req.getSex().toString());
-        psuser.setDate(4, Date.valueOf(ParseDate.parseDate(req.getBirthday())));
+        if(req.getBirthday() == null)
+            psuser.setDate(4, null);
+        else
+            psuser.setDate(4, Date.valueOf(ParseDate.parseDate(req.getBirthday())));
         psuser.setInt(5, 0);
         psuser.setString(7, "user");
         psuser.setString(6, null);
@@ -179,7 +182,7 @@ public class UserServiceImpl implements UserService {
             } else {
                 String sql = "SELECT * FROM user_relationships WHERE followermid = ? AND followingmid = ?";
                 PreparedStatement ps = conn.prepareStatement(sql);
-                auth.setMid(getMid(auth, conn));
+                auth.setMid(Authenticate.getMid(auth, conn));
                 ps.setLong(1, auth.getMid());
                 ps.setLong(2, followeeMid);
                 if(followeeMid == auth.getMid()){
@@ -308,34 +311,6 @@ public class UserServiceImpl implements UserService {
             e.printStackTrace();
         }
         return null;
-    }
-
-    public static long getMid(AuthInfo auth, Connection conn){
-        try{
-            String pattern = "";
-            if(auth.getMid() != 0){
-                return auth.getMid();
-            }else if(auth.getQq() != null){
-                pattern = auth.getQq();
-            }else if(auth.getWechat() != null){
-                pattern = auth.getWechat();
-            }else{
-                return -1;
-            }
-            String sql = "SELECT * FROM auth_info WHERE qq = ? OR wechat = ?";
-            PreparedStatement ps = conn.prepareStatement(sql);
-            ps.setString(1, pattern);
-            ps.setString(2, pattern);
-            ResultSet rs = ps.executeQuery();
-            if (rs.next()) {
-                return rs.getLong("mid");
-            } else {
-                return -1;
-            }
-        }catch(Exception e){
-            e.printStackTrace();
-            return -1;
-        }
     }
 
 }

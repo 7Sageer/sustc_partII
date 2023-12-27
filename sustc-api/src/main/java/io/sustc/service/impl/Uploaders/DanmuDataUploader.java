@@ -18,6 +18,7 @@ import java.util.ArrayList;
 import io.sustc.dto.*;
 
 import javax.sql.DataSource;
+
 @Transactional
 public class DanmuDataUploader {
     private DataSource dataSource;
@@ -58,26 +59,25 @@ public class DanmuDataUploader {
         String danmuSql = "INSERT INTO danmus (bv, mid, time, content, postTime) VALUES (?, ?, ?, ?, ?)";
         String danmuLikeSql = "INSERT INTO danmu_like (danmuId, mid) VALUES (?, ?)";
 
-        Connection conn = dataSource.getConnection();
-        conn.setAutoCommit(false);
-        String disableSql = "SET session_replication_role = 'replica'";
-        try (PreparedStatement disableStmt = conn.prepareStatement(disableSql)) {
-            disableStmt.execute();
-        }
-
-        try (PreparedStatement danmuStmt = conn.prepareStatement(danmuSql, Statement.RETURN_GENERATED_KEYS);
-                PreparedStatement danmuLikeStmt = conn.prepareStatement(danmuLikeSql);) {
-            for (DanmuRecord danmu : batch) {
-                danmuStmt.setString(1, danmu.getBv());
-                danmuStmt.setLong(2, danmu.getMid());
-                danmuStmt.setFloat(3, danmu.getTime());
-                danmuStmt.setString(4, danmu.getContent());
-                danmuStmt.setTimestamp(5, danmu.getPostTime());
-                danmuStmt.addBatch();
+        try (Connection conn = dataSource.getConnection();) {
+            String disableSql = "SET session_replication_role = 'replica'";
+            try (PreparedStatement disableStmt = conn.prepareStatement(disableSql)) {
+                disableStmt.execute();
             }
 
-            danmuStmt.executeBatch();
-            ResultSet id = danmuStmt.getGeneratedKeys();
+            try (PreparedStatement danmuStmt = conn.prepareStatement(danmuSql, Statement.RETURN_GENERATED_KEYS);
+                    PreparedStatement danmuLikeStmt = conn.prepareStatement(danmuLikeSql);) {
+                for (DanmuRecord danmu : batch) {
+                    danmuStmt.setString(1, danmu.getBv());
+                    danmuStmt.setLong(2, danmu.getMid());
+                    danmuStmt.setFloat(3, danmu.getTime());
+                    danmuStmt.setString(4, danmu.getContent());
+                    danmuStmt.setTimestamp(5, danmu.getPostTime());
+                    danmuStmt.addBatch();
+                }
+
+                danmuStmt.executeBatch();
+                ResultSet id = danmuStmt.getGeneratedKeys();
                 int i = 0;
                 while (id.next()) {
                     danmuLikeStmt.setInt(1, id.getInt(1));
@@ -86,10 +86,9 @@ public class DanmuDataUploader {
                         danmuLikeStmt.addBatch();
                     }
                 }
-            danmuLikeStmt.executeBatch();
+                danmuLikeStmt.executeBatch();
+            }
         }
-        conn.commit();
-        conn.close();
     }
 
     private <T> List<List<T>> splitIntoBatches(List<T> list, int batchSize) {

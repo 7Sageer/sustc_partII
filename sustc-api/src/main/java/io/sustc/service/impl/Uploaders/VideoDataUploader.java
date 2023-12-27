@@ -54,7 +54,7 @@ public class VideoDataUploader {
         }
     }
 
-    private void processBatch(List<VideoRecord> batch) throws SQLException{
+    private void processBatch(List<VideoRecord> batch) throws SQLException {
         String videoSql = "INSERT INTO videos (bv, title, ownerMid, commitTime, reviewTime, publicTime, duration, description, isPublic, reviewer) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
         String interactionSql = "INSERT INTO user_video_interaction (mid, bv, is_liked, is_coined, is_favorited) VALUES (?, ?, ?, ?, ?)";
         String watchSql = "INSERT INTO user_video_watch (mid, bv, watch_time) VALUES (?, ?, ?)";
@@ -62,52 +62,51 @@ public class VideoDataUploader {
         String coinSql = "INSERT INTO user_video_coin (mid, bv) VALUES (?, ?)";
         String favoriteSql = "INSERT INTO user_video_favorite (mid, bv) VALUES (?, ?)";
 
-        Connection conn = dataSource.getConnection();
-        conn.setAutoCommit(false);
-        String disableSql = "SET session_replication_role = 'replica'";
-        try (PreparedStatement disableStmt = conn.prepareStatement(disableSql)) {
-            disableStmt.execute();
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-
-        try (PreparedStatement videoStmt = conn.prepareStatement(videoSql);
-                PreparedStatement interactionStmt = conn.prepareStatement(interactionSql);
-                PreparedStatement watchStmt = conn.prepareStatement(watchSql);
-                PreparedStatement likeStmt = conn.prepareStatement(likeSql);
-                PreparedStatement coinStmt = conn.prepareStatement(coinSql);
-                PreparedStatement favoriteStmt = conn.prepareStatement(favoriteSql)) {
-
-            for (VideoRecord video : batch) {
-                // 插入video
-                videoStmt.setString(1, video.getBv());
-                videoStmt.setString(2, video.getTitle());
-                videoStmt.setLong(3, video.getOwnerMid());
-                videoStmt.setTimestamp(4, video.getCommitTime());
-                videoStmt.setTimestamp(5, video.getReviewTime());
-                videoStmt.setTimestamp(6, video.getPublicTime());
-                videoStmt.setFloat(7, video.getDuration());
-                videoStmt.setString(8, video.getDescription());
-                videoStmt.setBoolean(9, true);
-                videoStmt.setLong(10, video.getReviewer());
-                videoStmt.addBatch();
-
-                int temp = 0;
-                for (long mid : video.getViewerMids()) {
-                    watchStmt.setLong(1, mid);
-                    watchStmt.setString(2, video.getBv());
-                    watchStmt.setFloat(3, video.getViewTime()[temp++]);
-                    watchStmt.addBatch();
-                }
-                watchStmt.executeBatch();
+        try (Connection conn = dataSource.getConnection();) {
+            conn.setAutoCommit(false);
+            String disableSql = "SET session_replication_role = 'replica'";
+            try (PreparedStatement disableStmt = conn.prepareStatement(disableSql)) {
+                disableStmt.execute();
+            } catch (SQLException e) {
+                e.printStackTrace();
             }
-            videoStmt.executeBatch();
-            insertVideoInteractions(batch, conn);
-            conn.commit();
-        } catch (SQLException e) {
-            e.printStackTrace();
-        } finally {
-            conn.close();
+
+            try (PreparedStatement videoStmt = conn.prepareStatement(videoSql);
+                    PreparedStatement interactionStmt = conn.prepareStatement(interactionSql);
+                    PreparedStatement watchStmt = conn.prepareStatement(watchSql);
+                    PreparedStatement likeStmt = conn.prepareStatement(likeSql);
+                    PreparedStatement coinStmt = conn.prepareStatement(coinSql);
+                    PreparedStatement favoriteStmt = conn.prepareStatement(favoriteSql)) {
+
+                for (VideoRecord video : batch) {
+                    // 插入video
+                    videoStmt.setString(1, video.getBv());
+                    videoStmt.setString(2, video.getTitle());
+                    videoStmt.setLong(3, video.getOwnerMid());
+                    videoStmt.setTimestamp(4, video.getCommitTime());
+                    videoStmt.setTimestamp(5, video.getReviewTime());
+                    videoStmt.setTimestamp(6, video.getPublicTime());
+                    videoStmt.setFloat(7, video.getDuration());
+                    videoStmt.setString(8, video.getDescription());
+                    videoStmt.setBoolean(9, true);
+                    videoStmt.setLong(10, video.getReviewer());
+                    videoStmt.addBatch();
+
+                    int temp = 0;
+                    for (long mid : video.getViewerMids()) {
+                        watchStmt.setLong(1, mid);
+                        watchStmt.setString(2, video.getBv());
+                        watchStmt.setFloat(3, video.getViewTime()[temp++]);
+                        watchStmt.addBatch();
+                    }
+                    watchStmt.executeBatch();
+                }
+                videoStmt.executeBatch();
+                insertVideoInteractions(batch, conn);
+                conn.commit();
+            } catch (SQLException e) {
+                e.printStackTrace();
+            }
         }
     }
 
