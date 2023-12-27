@@ -7,13 +7,6 @@ import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 import org.springframework.beans.factory.annotation.Autowired;
-import io.fury.ThreadSafeFury;
-import io.sustc.dto.*;
-import io.sustc.service.*;
-import lombok.SneakyThrows;
-import lombok.extern.slf4j.Slf4j;
-import lombok.val;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.nio.file.Files;
@@ -23,15 +16,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.atomic.AtomicLong;
 
-import java.nio.file.Files;
-import java.nio.file.Paths;
-import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentSkipListSet;
-import java.util.concurrent.atomic.AtomicLong;
-
 @Service
-@Slf4j
 @Slf4j
 public class BenchmarkService {
 
@@ -352,7 +337,6 @@ public class BenchmarkService {
                     pass.incrementAndGet();
                 } else {
                     log.debug("Wrong answer for {}: expected {}, got {}", it.getKey(), watched, res);
-                    log.debug("User {} has watched video {}, liked danmu {} of it, but got {}", it.getKey(), danmuBv, danmuId, res);
                 }
             } catch (Exception e) {
                 log.error("Exception thrown for {}", it.getKey(), e);
