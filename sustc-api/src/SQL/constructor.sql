@@ -234,7 +234,7 @@ BEGIN
         FROM user_relationships ur
         JOIN user_followings uf ON ur.followingMid = uf.followingMid
         JOIN users u ON ur.followerMid = u.mid
-        WHERE ur.followerMid <> auth
+        WHERE ur.followerMid <> auth AND ur.followerMid NOT IN (SELECT followingMid FROM user_followings)
         GROUP BY ur.followerMid, u.level
     )
     SELECT pf.followerMid
@@ -245,3 +245,4 @@ BEGIN
 
 END;
 $$ LANGUAGE plpgsql;
+
