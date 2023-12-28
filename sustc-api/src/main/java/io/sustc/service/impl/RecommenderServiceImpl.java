@@ -165,7 +165,7 @@ public class RecommenderServiceImpl implements io.sustc.service.RecommenderServi
                 return result;
             }
         } catch (Exception e) {
-            log.error("Failed to get the result of recommendVideosForUser");
+            log.error("Failed to get the result of recommendVideosForUser : " + e.getMessage());
             e.printStackTrace();
             return null;
         }
@@ -179,28 +179,13 @@ public class RecommenderServiceImpl implements io.sustc.service.RecommenderServi
                 return null;
             } else {
                 auth.setMid(Authenticate.getMid(auth, conn));
-                String sql = "SELECT ur2.followerMid AS recommendedUserId, COUNT(*) AS commonFollowings, u.level " +
-                        "FROM user_relationships ur1 " +
-                        "JOIN user_relationships ur2 ON ur1.followingMid = ur2.followingMid " +
-                        "JOIN users u ON ur2.followerMid = u.mid " +
-                        "WHERE ur1.followerMid = ? " +
-                        "AND ur2.followerMid != ? " +
-                        "AND NOT EXISTS ( " +
-                        "    SELECT 1 " +
-                        "    FROM user_relationships ur3 " +
-                        "    WHERE ur3.followerMid = ? AND ur3.followingMid = ur2.followerMid " +
-                        ") " +
-                        "GROUP BY ur2.followerMid, u.level " +
-                        "ORDER BY commonFollowings DESC, u.level " +
-                        "LIMIT ? OFFSET ?";
+                String sql = "SELECT recommendFriends(?,?,?);";
 
                 PreparedStatement pstmt = conn.prepareStatement(sql);
 
                 pstmt.setLong(1, auth.getMid());
-                pstmt.setLong(2, auth.getMid());
-                pstmt.setLong(3, auth.getMid());
-                pstmt.setInt(4, pageSize);
-                pstmt.setInt(5, (pageNum - 1) * pageSize);
+                pstmt.setInt(2, pageSize);
+                pstmt.setInt(3, pageNum);
                 ResultSet rs = pstmt.executeQuery();
                 List<Long> recommendedUserIds = new ArrayList<>();
                 while (rs.next()) {

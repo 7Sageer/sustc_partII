@@ -60,10 +60,10 @@ public class DanmuDataUploader {
         String danmuLikeSql = "INSERT INTO danmu_like (danmuId, mid) VALUES (?, ?)";
 
         try (Connection conn = dataSource.getConnection();) {
-            // String disableSql = "SET session_replication_role = 'replica'";
-            // try (PreparedStatement disableStmt = conn.prepareStatement(disableSql)) {
-            //     disableStmt.execute();
-            // }
+            String disableSql = "SET session_replication_role = 'replica'";
+            try (PreparedStatement disableStmt = conn.prepareStatement(disableSql)) {
+                disableStmt.execute();
+            }
 
             try (PreparedStatement danmuStmt = conn.prepareStatement(danmuSql, Statement.RETURN_GENERATED_KEYS);
                     PreparedStatement danmuLikeStmt = conn.prepareStatement(danmuLikeSql);) {

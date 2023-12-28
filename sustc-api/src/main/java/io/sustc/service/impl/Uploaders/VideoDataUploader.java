@@ -65,11 +65,11 @@ public class VideoDataUploader {
         try (Connection conn = dataSource.getConnection();) {
             conn.setAutoCommit(false);
             String disableSql = "SET session_replication_role = 'replica'";
-            // try (PreparedStatement disableStmt = conn.prepareStatement(disableSql)) {
-            //     disableStmt.execute();
-            // } catch (SQLException e) {
-            //     e.printStackTrace();
-            // }
+            try (PreparedStatement disableStmt = conn.prepareStatement(disableSql)) {
+                disableStmt.execute();
+            } catch (SQLException e) {
+                e.printStackTrace();
+            }
 
             try (PreparedStatement videoStmt = conn.prepareStatement(videoSql);
                     PreparedStatement interactionStmt = conn.prepareStatement(interactionSql);

@@ -61,10 +61,10 @@ public class UserDataUploader {
             String authSql = "INSERT INTO auth_info (mid, password, qq, wechat) VALUES (?, ?, ?, ?)";
             String followerSql = "INSERT INTO user_relationships (followerMid, followingMid) VALUES (?, ?)";
             try (Connection conn = dataSource.getConnection();) {
-                // String disableSql = "SET session_replication_role = 'replica'";
-                // try (PreparedStatement disableStmt = conn.prepareStatement(disableSql)) {
-                //     disableStmt.execute();
-                // }
+                String disableSql = "SET session_replication_role = 'replica'";
+                try (PreparedStatement disableStmt = conn.prepareStatement(disableSql)) {
+                    disableStmt.execute();
+                }
                 try (PreparedStatement userStmt = conn.prepareStatement(userSql);
                         PreparedStatement authStmt = conn.prepareStatement(authSql);
                         PreparedStatement followerStmt = conn.prepareStatement(followerSql)) {

@@ -212,3 +212,35 @@ BEGIN
     END LOOP;
 END;
 $$;
+
+CREATE OR REPLACE FUNCTION recommendFriends(auth BIGINT, pageSize INT, pageNum INT)
+RETURNS TABLE(mid BIGINT) AS $$
+BEGIN
+    -- Check for invalid auth, pageSize, or pageNum
+    IF auth IS NULL OR pageSize <= 0 OR pageNum <= 0 THEN
+        RETURN QUERY SELECT NULL;
+        RETURN;
+    END IF;
+
+    RETURN QUERY
+    WITH user_followings AS (
+        SELECT followingMid
+        FROM user_relationships
+        WHERE followerMid = auth
+    ),
+    potential_friends AS (
+        SELECT ur.followerMid, COUNT(*) AS common_followings, u.level
+        FROM user_relationships ur
+        JOIN user_followings uf ON ur.followingMid = uf.followingMid
+        JOIN users u ON ur.followerMid = u.mid
+        WHERE ur.followerMid <> auth
+        GROUP BY ur.followerMid, u.level
+    )
+    SELECT pf.followerMid
+    FROM potential_friends pf
+    ORDER BY pf.common_followings DESC, pf.level DESC, pf.followerMid
+    OFFSET (pageNum - 1) * pageSize
+    LIMIT pageSize;
+
+END;
+$$ LANGUAGE plpgsql;
