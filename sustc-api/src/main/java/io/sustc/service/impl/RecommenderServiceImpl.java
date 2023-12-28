@@ -85,7 +85,6 @@ public class RecommenderServiceImpl implements io.sustc.service.RecommenderServi
                 } catch (SQLException e) {
                     e.printStackTrace();
                 }
-                Global.need_to_update = false;
             } catch (SQLException e) {
                 e.printStackTrace();
             }
@@ -159,7 +158,7 @@ public class RecommenderServiceImpl implements io.sustc.service.RecommenderServi
                 }
                 if (result.size() == 0) {
                     log.info("No similar videos found, or the video does not exist");
-                    return null;
+                    return generalRecommendations(pageSize, pageNum);
                 }
                 log.info("Successfully get the result of recommendVideosForUser");
                 return result;

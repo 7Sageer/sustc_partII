@@ -135,13 +135,20 @@ public class VideoServiceImpl implements VideoService {
                         log.error("Update video failed: no change");
                         return false;
                     }
+                    String isPublic = "SELECT ispublic FROM videos WHERE bv = ?;";
+                    PreparedStatement isPublicps = conn.prepareStatement(isPublic);
+                    isPublicps.setString(1, bv);
+                    ResultSet isPublicrs = isPublicps.executeQuery();
+                    isPublicrs.next();
+                    Boolean need_to_review = isPublicrs.getBoolean("ispublic");
                     String sql = "UPDATE videos SET title = ?, description = ?, duration = ?, committime = ?, ispublic = ? , publictime = ? WHERE bv = ?;";
                     PreparedStatement ps = conn.prepareStatement(sql);
                     ps.setString(1, req.getTitle());
                     ps.setString(2, req.getDescription());
                     ps.setFloat(3, req.getDuration());
                     ps.setTimestamp(4, req.getPublicTime());
-
+                    ps.setBoolean(5, false);
+                    ps.setString(7, bv);
                     if (req.getPublicTime() == null) {
                         log.error("Post video failed: publicTime is null");
                         return false;
@@ -149,11 +156,11 @@ public class VideoServiceImpl implements VideoService {
                         ps.setTimestamp(6, req.getPublicTime());
                     }
 
-                    ps.setString(7, bv);
-                    ps.setBoolean(5, false);
+                    
                     ps.executeUpdate();
                     log.info("Successfully update video: {}", bv);
-                    return true;
+                    return need_to_review;
+
                 } catch (SQLException e) {
                     e.printStackTrace();
                 }
@@ -174,7 +181,8 @@ public class VideoServiceImpl implements VideoService {
         }
 
         try (Connection conn = dataSource.getConnection()) {
-            if (Authenticate.authenticate(auth, conn) == null) {
+            Identity identity = Authenticate.authenticate(auth, conn);
+            if (identity == null) {
                 log.error("Search video failed: authentication failed");
                 return null;
             }
@@ -185,6 +193,11 @@ public class VideoServiceImpl implements VideoService {
             String sql = "SELECT v.bv, v.title, v.description, u.name as ownerName "
                        + "FROM videos v "
                        + "JOIN users u ON v.ownermid = u.mid";
+            
+            if(identity != Identity.SUPERUSER) {
+                sql += " WHERE v.ispublic = true";
+            }
+            
 
             Map<String, Integer> countMap = new HashMap<>();
             Map<String, Integer> viewMap = new HashMap<>();

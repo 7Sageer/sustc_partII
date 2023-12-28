@@ -34,14 +34,7 @@ CREATE TABLE videos (
 );
 
 -- UserVideoInteraction Table
-CREATE TABLE user_video_interaction (
-    mid BIGINT,
-    bv VARCHAR(50),
-    is_liked BOOLEAN DEFAULT FALSE,
-    is_coined BOOLEAN DEFAULT FALSE,
-    is_favorited BOOLEAN DEFAULT FALSE,
-    PRIMARY KEY (mid, bv)
-);
+
 
 
 -- UserVideoWatch Table
@@ -96,53 +89,36 @@ CREATE TABLE video_aggregates (
 );
 
 
-create function recommend_videos_for_user(current_user_id bigint, pagesize integer, pagenum integer)
-    returns TABLE(bv character varying)
-    language plpgsql
-as
-$$
-DECLARE
-    friend_count INT;
+
+CREATE OR REPLACE FUNCTION recommend_videos_for_user(authMid BIGINT, pageSize INT, pageNum INT)
+RETURNS TABLE(bv VARCHAR(50)) AS $$
 BEGIN
-    -- 检查互关数量
-    SELECT COUNT(*) INTO friend_count
-    FROM user_relationships a
-    JOIN user_relationships b ON a.followerMid = b.followingMid AND a.followingMid = b.followerMid
-    WHERE a.followingMid = current_user_id;
-
-    -- 如果有互关，执行特定推荐逻辑
-    IF friend_count > 0 THEN
-        RETURN QUERY
-        SELECT vid.bv
-        FROM videos vid
-        JOIN users usr ON vid.ownerMid = usr.mid
-        WHERE vid.bv IN (
-            SELECT uvw.bv
-            FROM user_video_watch uvw
-            JOIN user_relationships ur ON uvw.mid = ur.followerMid OR uvw.mid = ur.followingMid
-            WHERE (ur.followerMid = current_user_id OR ur.followingMid = current_user_id)
-            AND uvw.mid != current_user_id
+    RETURN QUERY
+    SELECT v.bv
+    FROM videos v
+    JOIN LATERAL (
+        SELECT uvw.bv
+        FROM user_video_watch uvw
+        JOIN user_relationships ur ON uvw.mid = ur.followingMid AND ur.followerMid = authMid
+        WHERE uvw.bv NOT IN (
+            SELECT uvw_inner.bv FROM user_video_watch uvw_inner WHERE uvw_inner.mid = authMid
         )
-        AND vid.bv NOT IN (
-            SELECT uvw.bv FROM user_video_watch uvw WHERE uvw.mid = current_user_id
-        )
-        ORDER BY usr.level DESC, vid.publicTime DESC
-        LIMIT pageSize OFFSET pageSize * (pageNum - 1);
-
-    -- 如果没有互关，执行一般推荐逻辑
-    ELSE
-        RETURN QUERY
-        SELECT vid.bv
-        FROM videos vid
-        JOIN users usr ON vid.ownerMid = usr.mid
-        WHERE vid.bv NOT IN (
-            SELECT uvw.bv FROM user_video_watch uvw WHERE uvw.mid = current_user_id
-        )
-        ORDER BY usr.level DESC, vid.publicTime DESC
-        LIMIT pageSize OFFSET pageSize * (pageNum - 1);
-    END IF;
+        AND uvw.bv = v.bv
+        GROUP BY uvw.bv
+    ) AS friend_videos ON true
+    JOIN users u ON v.ownerMid = u.mid
+    GROUP BY v.bv, u.level, v.publicTime
+    ORDER BY COUNT(friend_videos.bv) DESC, u.level DESC, v.publicTime DESC
+    LIMIT pageSize OFFSET (pageNum - 1) * pageSize;
 END;
-$$;
+$$ LANGUAGE plpgsql;
+
+
+
+
+
+
+
 
 create function update_video_aggregates() returns void
     language plpgsql
@@ -165,43 +141,67 @@ BEGIN
 END;
 $$;
 
-create function update_video_interactions_aggregates() returns void
-    language plpgsql
-as
-$$
-DECLARE
-    v_record RECORD;
+CREATE OR REPLACE FUNCTION update_video_interactions_aggregates()
+RETURNS VOID AS $$
 BEGIN
-    FOR v_record IN SELECT v.bv, COUNT(uvi.is_liked) AS like_count, COUNT(uvi.is_coined) AS coin_count, COUNT(uvi.is_favorited) AS fav_count
-                    FROM videos v
-                    JOIN user_video_interaction uvi ON v.bv = uvi.bv
-                    GROUP BY v.bv
-    LOOP
-        -- 更新或插入到 video_interactions_aggregates 表
-        INSERT INTO video_interactions_aggregates(bv, like_count, coin_count, fav_count)
-        VALUES (v_record.bv, v_record.like_count, v_record.coin_count, v_record.fav_count)
-        ON CONFLICT (bv) DO UPDATE
-        SET like_count = v_record.like_count,
-            coin_count = v_record.coin_count,
-            fav_count = v_record.fav_count;
-    END LOOP;
+    -- 从user_video_interaction表中聚合数据
+    WITH aggregated_data AS (
+        SELECT
+            bv,
+            COUNT(*) FILTER (WHERE is_liked) AS like_count,
+            COUNT(*) FILTER (WHERE is_coined) AS coin_count,
+            COUNT(*) FILTER (WHERE is_favorited) AS fav_count
+        FROM
+            user_video_interaction
+        GROUP BY bv
+    )
+    -- 将聚合数据插入video_interactions_aggregates表，如果存在则更新
+    INSERT INTO video_interactions_aggregates (bv, like_count, coin_count, fav_count)
+    SELECT bv, like_count, coin_count, fav_count
+    FROM aggregated_data
+    ON CONFLICT (bv) DO UPDATE
+    SET like_count = EXCLUDED.like_count,
+        coin_count = EXCLUDED.coin_count,
+        fav_count = EXCLUDED.fav_count;
 END;
-$$;
+$$ LANGUAGE plpgsql;
 
 
-create function update_video_stats() returns void
+
+create or replace function update_video_stats() returns void
     language plpgsql
 as
 $$
 DECLARE
     v_record RECORD;
 BEGIN
-    FOR v_record IN SELECT v.bv, COALESCE(via.like_count, 0) / NULLIF(via.like_count + vaa.avg_finish, 0) AS like_rate,
-                    COALESCE(via.coin_count, 0) / NULLIF(via.coin_count + vaa.avg_finish, 0) AS coin_rate,
-                    COALESCE(via.fav_count, 0) / NULLIF(via.fav_count + vaa.avg_finish, 0) AS fav_rate
-                    FROM videos v
-                    JOIN video_interactions_aggregates via ON v.bv = via.bv
-                    JOIN video_aggregates vaa ON v.bv = vaa.bv
+    FOR v_record IN
+        SELECT
+            v.bv,
+            CASE
+                WHEN uvw.view_count > 0 THEN COALESCE(via.like_count, 0)::FLOAT / uvw.view_count
+                ELSE 0
+            END AS like_rate,
+            CASE
+                WHEN uvw.view_count > 0 THEN COALESCE(via.coin_count, 0)::FLOAT / uvw.view_count
+                ELSE 0
+            END AS coin_rate,
+            CASE
+                WHEN uvw.view_count > 0 THEN COALESCE(via.fav_count, 0)::FLOAT / uvw.view_count
+                ELSE 0
+            END AS fav_rate
+        FROM
+            videos v
+            JOIN video_interactions_aggregates via ON v.bv = via.bv
+            LEFT JOIN (
+                SELECT
+                    bv,
+                    COUNT(DISTINCT mid) AS view_count
+                FROM
+                    user_video_watch
+                GROUP BY
+                    bv
+            ) uvw ON v.bv = uvw.bv
     LOOP
         -- 更新或插入到 video_stats 表
         INSERT INTO video_stats(bv, like_rate, coin_rate, fav_rate)
@@ -212,6 +212,7 @@ BEGIN
             fav_rate = v_record.fav_rate;
     END LOOP;
 END;
+
 $$;
 
 CREATE OR REPLACE FUNCTION recommendFriends(auth BIGINT, pageSize INT, pageNum INT)

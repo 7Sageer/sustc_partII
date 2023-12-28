@@ -73,7 +73,7 @@ public class UserServiceImpl implements UserService {
             }
             long newUserId = createNewUser(req, conn);
             log.info("Successfully create new user: " + newUserId);
-            return newUserId;
+            return newUserId; 
         } catch (SQLException e) {
             e.printStackTrace();
             return -1;
@@ -99,7 +99,7 @@ public class UserServiceImpl implements UserService {
             psuser.setDate(4, Date.valueOf(ParseDate.parseDate(req.getBirthday())));
         psuser.setInt(5, 0);
         psuser.setString(7, "user");
-        psuser.setString(6, null);
+        psuser.setString(6, req.getSign());
         psuser.setInt(8, 0);
 
         psauth.setLong(1, mid);
