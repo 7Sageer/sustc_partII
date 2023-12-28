@@ -227,6 +227,9 @@ public class VideoServiceImpl implements VideoService {
     }
 
     private int findMatches(Pattern pattern, String text) {
+        if(text == null) {
+            return 0;
+        }
         Matcher matcher = pattern.matcher(text);
         int matches = 0;
         while (matcher.find()) {

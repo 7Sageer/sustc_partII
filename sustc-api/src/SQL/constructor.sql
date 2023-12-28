@@ -96,51 +96,6 @@ CREATE TABLE video_aggregates (
 );
 
 
-CREATE OR REPLACE FUNCTION recommend_friends_for_user(current_user_id BIGINT, pagesize INTEGER, pagenum INTEGER)
-RETURNS TABLE(mid BIGINT) AS $$
-BEGIN
-    RETURN QUERY
-    SELECT u.mid
-    FROM users u
-    JOIN (
-        SELECT ur.followingMid
-        FROM user_relationships ur
-        WHERE ur.followerMid = current_user_id
-    ) AS current_user_followings ON u.mid = current_user_followings.followingMid
-    LEFT JOIN (
-        SELECT ur.followerMid
-        FROM user_relationships ur
-        WHERE ur.followingMid = current_user_id
-    ) AS current_user_followers ON u.mid = current_user_followers.followerMid
-    WHERE current_user_followers.followerMid IS NULL
-    GROUP BY u.mid, u.level
-    ORDER BY COUNT(u.mid) DESC, u.level DESC, u.mid
-    LIMIT pagesize OFFSET (pagenum - 1) * pagesize;
-END; $$
-LANGUAGE plpgsql;
-
--- -- UserVideoFavorite Table
--- CREATE TABLE user_video_favorite (
---     mid BIGINT REFERENCES users(mid),
---     bv VARCHAR(50) REFERENCES videos(bv),
---     PRIMARY KEY (mid, bv)
--- );
---
--- -- UserVideoLike Table
--- CREATE TABLE user_video_like (
---     mid BIGINT REFERENCES users(mid),
---     bv VARCHAR(50) REFERENCES videos(bv),
---     PRIMARY KEY (mid, bv)
--- );
---
--- -- UserVideoCoin Table
--- CREATE TABLE user_video_coin (
---     mid BIGINT REFERENCES users(mid),
---     bv VARCHAR(50) REFERENCES videos(bv),
---     PRIMARY KEY (mid, bv)
--- );
-
-
 create function recommend_videos_for_user(current_user_id bigint, pagesize integer, pagenum integer)
     returns TABLE(bv character varying)
     language plpgsql
@@ -188,7 +143,6 @@ BEGIN
     END IF;
 END;
 $$;
->>>>>>> 16068ffddc8e93f90a8dcf00b592af2e5c25a94c
 
 create function update_video_aggregates() returns void
     language plpgsql
@@ -211,11 +165,6 @@ BEGIN
 END;
 $$;
 
-<<<<<<< HEAD
-=======
-alter function update_video_aggregates() owner to postgres;
-
->>>>>>> 16068ffddc8e93f90a8dcf00b592af2e5c25a94c
 create function update_video_interactions_aggregates() returns void
     language plpgsql
 as
@@ -239,20 +188,14 @@ BEGIN
 END;
 $$;
 
-<<<<<<< HEAD
 
 create function update_video_stats() returns void
-=======
-alter function update_video_interactions_aggregates() owner to postgres;
-create function update_video_interactions_aggregates() returns void
->>>>>>> 16068ffddc8e93f90a8dcf00b592af2e5c25a94c
     language plpgsql
 as
 $$
 DECLARE
     v_record RECORD;
 BEGIN
-<<<<<<< HEAD
     FOR v_record IN SELECT v.bv, COALESCE(via.like_count, 0) / NULLIF(via.like_count + vaa.avg_finish, 0) AS like_rate,
                     COALESCE(via.coin_count, 0) / NULLIF(via.coin_count + vaa.avg_finish, 0) AS coin_rate,
                     COALESCE(via.fav_count, 0) / NULLIF(via.fav_count + vaa.avg_finish, 0) AS fav_rate
@@ -270,25 +213,35 @@ BEGIN
     END LOOP;
 END;
 $$;
-=======
-    FOR v_record IN SELECT v.bv, COUNT(uvi.is_liked) AS like_count, COUNT(uvi.is_coined) AS coin_count, COUNT(uvi.is_favorited) AS fav_count
-                    FROM videos v
-                    JOIN user_video_interaction uvi ON v.bv = uvi.bv
-                    GROUP BY v.bv
-    LOOP
-        -- 更新或插入到 video_interactions_aggregates 表
-        INSERT INTO video_interactions_aggregates(bv, like_count, coin_count, fav_count)
-        VALUES (v_record.bv, v_record.like_count, v_record.coin_count, v_record.fav_count)
-        ON CONFLICT (bv) DO UPDATE
-        SET like_count = v_record.like_count,
-            coin_count = v_record.coin_count,
-            fav_count = v_record.fav_count;
-    END LOOP;
+
+CREATE OR REPLACE FUNCTION recommendFriends(auth BIGINT, pageSize INT, pageNum INT)
+RETURNS TABLE(mid BIGINT) AS $$
+BEGIN
+    -- Check for invalid auth, pageSize, or pageNum
+    IF auth IS NULL OR pageSize <= 0 OR pageNum <= 0 THEN
+        RETURN QUERY SELECT NULL;
+        RETURN;
+    END IF;
+
+    RETURN QUERY
+    WITH user_followings AS (
+        SELECT followingMid
+        FROM user_relationships
+        WHERE followerMid = auth
+    ),
+    potential_friends AS (
+        SELECT ur.followerMid, COUNT(*) AS common_followings, u.level
+        FROM user_relationships ur
+        JOIN user_followings uf ON ur.followingMid = uf.followingMid
+        JOIN users u ON ur.followerMid = u.mid
+        WHERE ur.followerMid <> auth
+        GROUP BY ur.followerMid, u.level
+    )
+    SELECT pf.followerMid
+    FROM potential_friends pf
+    ORDER BY pf.common_followings DESC, pf.level DESC, pf.followerMid
+    OFFSET (pageNum - 1) * pageSize
+    LIMIT pageSize;
+
 END;
-$$;
-
-alter function update_video_interactions_aggregates() owner to postgres;
-
-
-
->>>>>>> 16068ffddc8e93f90a8dcf00b592af2e5c25a94c
+$$ LANGUAGE plpgsql;

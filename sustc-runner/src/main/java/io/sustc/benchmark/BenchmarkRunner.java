@@ -62,7 +62,7 @@ public class BenchmarkRunner implements ShellApplicationRunner {
                 .filter(method -> method.isAnnotationPresent(BenchmarkStep.class))
                 // .filter(method -> {
                 //     int order = method.getAnnotation(BenchmarkStep.class).order();
-                //     return order == 2;
+                //     return order <= 10;
                 // })
                 .sorted(Comparator.comparingInt(m -> m.getAnnotation(BenchmarkStep.class).order()))
                 .peek(method -> log.info("Step {}: {}",

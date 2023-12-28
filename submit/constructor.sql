@@ -200,6 +200,7 @@ BEGIN
                     COALESCE(via.coin_count, 0) / NULLIF(via.coin_count + vaa.avg_finish, 0) AS coin_rate,
                     COALESCE(via.fav_count, 0) / NULLIF(via.fav_count + vaa.avg_finish, 0) AS fav_rate
                     FROM videos v
+                    JOIN video_interactions_aggregates via ON v.bv = via.bv
                     JOIN video_aggregates vaa ON v.bv = vaa.bv
     LOOP
         -- 更新或插入到 video_stats 表
@@ -244,3 +245,5 @@ BEGIN
 
 END;
 $$ LANGUAGE plpgsql;
+
+

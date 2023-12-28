@@ -165,7 +165,8 @@ public class RecommenderServiceImpl implements io.sustc.service.RecommenderServi
                 return result;
             }
         } catch (Exception e) {
-            log.error("Failed to get the result of recommendVideosForUser : " + e.getMessage());
+            log.error("Failed to get the result of recommendVideosForUser : ");
+            log.error(e.getMessage());
             e.printStackTrace();
             return null;
         }
@@ -189,7 +190,7 @@ public class RecommenderServiceImpl implements io.sustc.service.RecommenderServi
                 ResultSet rs = pstmt.executeQuery();
                 List<Long> recommendedUserIds = new ArrayList<>();
                 while (rs.next()) {
-                    recommendedUserIds.add(rs.getLong("recommendedUserId"));
+                    recommendedUserIds.add(rs.getLong("recommendFriends"));
                 }
                 if (recommendedUserIds.size() == 0) {
                     log.info("No similar users found, or the user does not exist");
